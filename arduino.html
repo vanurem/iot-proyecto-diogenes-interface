@@ -3,18 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <title>Monitor de Basurero</title>
-  <!-- Bootstrap Cosmo Theme (Bootswatch) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.2/dist/cosmo/bootstrap.min.css">
   <style>
     canvas { margin-top: 20px; }
-
-    /* Solo cambia los colores de los botones */
-    #btnConnect { background-color: #28a745; border-color: #28a745; color: #fff; }   /* Verde */
-    #btnStart { background-color: #007bff; border-color: #007bff; color: #fff; }    /* Azul */
-    #btnStop { background-color: #ffc107; border-color: #ffc107; color: #212529; }  /* Amarillo */
-    #btnLimpiar { background-color: #dc3545; border-color: #dc3545; color: #fff; }  /* Rojo */
-    [onclick="cargarDatosPrueba()"] { background-color: #007bff; border-color: #007bff; color: #fff; } /* Azul */
-
+    #btnConnect { background-color: #28a745; border-color: #28a745; color: #fff; }
+    #btnStart { background-color: #007bff; border-color: #007bff; color: #fff; }
+    #btnStop { background-color: #ffc107; border-color: #ffc107; color: #212529; }
+    #btnLimpiar { background-color: #dc3545; border-color: #dc3545; color: #fff; }
+    [onclick="cargarDatosPrueba()"] { background-color: #007bff; border-color: #007bff; color: #fff; }
     .table-scroll {
       max-height: 320px;
       overflow-y: auto;
@@ -24,7 +20,6 @@
       margin-bottom: 0;
     }
   </style>
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-light">
@@ -38,8 +33,6 @@
       <button id="btnLimpiar" class="btn btn-danger">Limpiar</button>
     </div>
     <div id="status" class="alert alert-secondary mb-4">Estado: esperando conexión...</div>
-
-    <!-- KPIs -->
     <div class="row mb-4">
       <div class="col-md-3">
         <div class="card text-center">
@@ -49,25 +42,23 @@
       </div>
       <div class="col-md-3">
         <div class="card text-center">
-          <div class="card-header">Promedio Peso</div>
-          <div class="card-body"><p id="kpiPeso" class="card-text fs-4">0 %</p></div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card text-center">
-          <div class="card-header">Nivel antes de alarma</div>
-          <div class="card-body"><p id="kpiAlarma" class="card-text fs-4">0 %</p></div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card text-center">
           <div class="card-header">Tiempo medio detección</div>
           <div class="card-body"><p id="kpiTiempo" class="card-text fs-4">0 s</p></div>
         </div>
       </div>
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-header">Ciclos completados</div>
+          <div class="card-body"><p id="kpiCiclos" class="card-text fs-4">0</p></div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-header">Duración promedio ciclo</div>
+          <div class="card-body"><p id="kpiDuracionCiclo" class="card-text fs-4">0 h</p></div>
+        </div>
+      </div>
     </div>
-
-    <!-- Tabla y Gráfico -->
     <div class="row mb-4">
       <div class="col-md-6">
         <div class="table-responsive table-scroll mb-0">
@@ -85,28 +76,43 @@
         </div>
       </div>
     </div>
+    <div class="row mb-4">
+      <div class="col-12">
+        <h4>Historial de ciclos</h4>
+        <div class="table-responsive table-scroll mb-0">
+          <table id="historialTable" class="table table-bordered table-striped mb-0">
+            <thead class="table-dark">
+              <tr>
+                <th>#</th>
+                <th>Fecha inicio</th>
+                <th>Fecha fin</th>
+                <th>Promedio Distancia (cm)</th>
+                <th>Tiempo medio detección (s)</th>
+                <th>Duración ciclo (h)</th>
+                <th>Muestras</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
-
   <script>
     let port, reader, keepReading = false;
     let lines = [];
     let distanciaAnterior = null, pesoAnterior = null;
-    let readableStreamClosed = null; // <--- agrega esto
-    let lineReader = null;           // <--- agrega esto
-
-    const UMBRAL_CM = 5; // Umbral de alarma (lleno)
-    const DISTANCIA_VACIO = 120; // Ajusta según tu basurero
-    const DISTANCIA_LLENO = 5;   // Igual al umbral
-
-    // KPIs acumuladores
+    let readableStreamClosed = null;
+    let lineReader = null;
+    const UMBRAL_CM = 5;
+    const DISTANCIA_VACIO = 120;
+    const DISTANCIA_LLENO = 5;
     let sumaDistancia = 0, count = 0;
     let muestrasAntesAlarma = 0, totalAlarmas = 0;
     let tiempoUltimaAlarma = null, tiempoTotalAlarma = 0;
     let tiempoUltimaMuestra = null;
     let tiemposEntreAlarmas = [];
     let enAlarma = false;
-
-    // Chart.js setup
     const ctx = document.getElementById('grafico').getContext('2d');
     const grafico = new Chart(ctx, {
       type: 'line',
@@ -118,11 +124,9 @@
       },
       options: { responsive: true }
     });
-
     function setStatus(msg) {
       document.getElementById('status').textContent = "Estado: " + msg;
     }
-
     async function connect() {
       try {
         port = await navigator.serial.requestPort();
@@ -132,7 +136,6 @@
         setStatus("error de conexión: " + e.message);
       }
     }
-
     async function start() {
       if (!port || !port.readable) {
         setStatus("Primero conecta el dispositivo.");
@@ -145,8 +148,6 @@
       keepReading = true;
       const decoder = new TextDecoderStream();
       const inputDone = port.readable.pipeTo(decoder.writable);
-
-      // TransformStream para dividir por líneas
       const lineStream = decoder.readable
         .pipeThrough(new TransformStream({
           start(controller) { this.chunks = ""; },
@@ -160,14 +161,11 @@
             if (this.chunks) controller.enqueue(this.chunks.trim());
           }
         }));
-
       lineReader = lineStream.getReader();
-
       while (keepReading) {
         const { value, done } = await lineReader.read();
         if (done) break;
         if (value) {
-          // Solo distancia: "Distancia: 123 cm"
           const match = value.match(/Distancia: (\d+) cm/);
           if (match) {
             const distancia = parseInt(match[1]);
@@ -181,25 +179,88 @@
       lineReader.releaseLock();
       lineReader = null;
     }
-
     function cargarDatosPrueba() {
+      limpiarDatos();
       const datosPrueba = [
-        { ts: "2025-11-18T09:00:00Z", distancia: 120, peso: 40 },
-        { ts: "2025-11-18T09:01:00Z", distancia: 118, peso: 45 },
-        { ts: "2025-11-18T09:02:00Z", distancia: 115, peso: 50 },
-        { ts: "2025-11-18T09:03:00Z", distancia: 110, peso: 80 },
-        { ts: "2025-11-18T09:04:00Z", distancia: 108, peso: 85 },
-        { ts: "2025-11-18T09:05:00Z", distancia: 105, peso: 90 }
+        { ts: "2025-11-24T08:00:00Z", distancia: 120 },
+        { ts: "2025-11-24T09:00:00Z", distancia: 100 },
+        { ts: "2025-11-24T10:00:00Z", distancia: 60 },
+        { ts: "2025-11-24T11:00:00Z", distancia: 20 },
+        { ts: "2025-11-24T12:00:00Z", distancia: 5 },
+        { ts: "2025-11-24T13:00:00Z", distancia: 120 },
+        { ts: "2025-11-25T08:00:00Z", distancia: 120 },
+        { ts: "2025-11-25T09:00:00Z", distancia: 90 },
+        { ts: "2025-11-25T10:00:00Z", distancia: 50 },
+        { ts: "2025-11-25T11:00:00Z", distancia: 10 },
+        { ts: "2025-11-25T12:00:00Z", distancia: 4 },
+        { ts: "2025-11-25T13:00:00Z", distancia: 115 },
+        { ts: "2025-11-26T08:00:00Z", distancia: 118 },
+        { ts: "2025-11-26T09:00:00Z", distancia: 80 },
+        { ts: "2025-11-26T10:00:00Z", distancia: 40 },
+        { ts: "2025-11-26T11:00:00Z", distancia: 7 },
+        { ts: "2025-11-26T12:00:00Z", distancia: 5 },
+        { ts: "2025-11-26T13:00:00Z", distancia: 120 }
       ];
-
-      datosPrueba.forEach(d => {
-        lines.push(`${d.ts},${d.distancia},${d.peso}`);
-        addRow(d.ts, d.distancia, d.peso);
+      let sumaDistanciaLocal = 0, countLocal = 0;
+      let tiemposEntreAlarmasLocal = [];
+      let enAlarmaLocal = false;
+      let cicloInicioLocal = null;
+      let tiempoUltimaAlarmaLocal = null;
+      datosPrueba.forEach((d, idx) => {
+        const table = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
+        const row = table.insertRow(0);
+        row.insertCell(0).textContent = formatearFecha(d.ts);
+        row.insertCell(1).textContent = d.distancia;
+        grafico.data.labels.push(formatearFecha(d.ts));
+        grafico.data.datasets[0].data.push(d.distancia);
+        sumaDistanciaLocal += d.distancia;
+        countLocal++;
+        if (!cicloInicioLocal && d.distancia > UMBRAL_CM) {
+          cicloInicioLocal = d.ts;
+        }
+        if (!enAlarmaLocal && d.distancia <= UMBRAL_CM) {
+          enAlarmaLocal = true;
+          if (tiempoUltimaAlarmaLocal) {
+            const tActual = new Date(d.ts).getTime();
+            tiemposEntreAlarmasLocal.push((tActual - tiempoUltimaAlarmaLocal) / 1000);
+            tiempoUltimaAlarmaLocal = tActual;
+          } else {
+            tiempoUltimaAlarmaLocal = new Date(d.ts).getTime();
+          }
+        }
+        if (enAlarmaLocal && d.distancia > UMBRAL_CM) {
+          enAlarmaLocal = false;
+          let duracionHoras = 0;
+          if (cicloInicioLocal) {
+            const inicio = new Date(cicloInicioLocal).getTime();
+            const fin = new Date(d.ts).getTime();
+            duracionHoras = (fin - inicio) / (1000 * 60 * 60);
+          }
+          historialCiclos.push({
+            inicio: cicloInicioLocal,
+            fin: d.ts,
+            promedioDistancia: countLocal ? (sumaDistanciaLocal / countLocal).toFixed(1) : 0,
+            tiempoMedio: tiemposEntreAlarmasLocal.length > 0
+              ? (tiemposEntreAlarmasLocal.reduce((a, b) => a + b, 0) / tiemposEntreAlarmasLocal.length).toFixed(1)
+              : 0,
+            duracionHoras: duracionHoras.toFixed(2),
+            muestras: countLocal
+          });
+          sumaDistanciaLocal = 0;
+          countLocal = 0;
+          tiemposEntreAlarmasLocal = [];
+          cicloInicioLocal = null;
+          tiempoUltimaAlarmaLocal = null;
+          table.innerHTML = "";
+          grafico.data.labels = [];
+          grafico.data.datasets[0].data = [];
+          grafico.update();
+        }
       });
-
+      actualizarHistorial();
+      actualizarKPIs();
       setStatus("Datos de prueba cargados");
     }
-
     function formatearFecha(ts) {
       const fecha = new Date(ts);
       const dia = String(fecha.getDate()).padStart(2, '0');
@@ -210,29 +271,26 @@
       const seg = String(fecha.getSeconds()).padStart(2, '0');
       return `${dia}/${mes}/${anio} ${hora}:${min}:${seg}`;
     }
-
+    let historialCiclos = [];
+    let cicloInicio = null;
+    let duracionesCiclos = [];
     function addRow(ts, distancia) {
-      // Tabla (insertar arriba)
+      if (distanciaAnterior !== null && distancia === distanciaAnterior) {
+        return;
+      }
+      distanciaAnterior = distancia;
       const table = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
       const row = table.insertRow(0);
       row.insertCell(0).textContent = formatearFecha(ts);
       row.insertCell(1).textContent = distancia;
-
-      // Gráfico (usa fecha legible)
-      grafico.data.labels.push(formatearFecha(ts)); // <-- aquí el cambio
+      grafico.data.labels.push(formatearFecha(ts));
       grafico.data.datasets[0].data.push(distancia);
       grafico.update();
-
-      // KPIs
       sumaDistancia += distancia;
       count++;
-
-      // Nivel antes de alarma
       if (!enAlarma && distancia > UMBRAL_CM) {
         muestrasAntesAlarma++;
       }
-
-      // Detección de cruce de umbral (evento de alarma)
       if (!enAlarma && distancia <= UMBRAL_CM) {
         enAlarma = true;
         totalAlarmas++;
@@ -245,99 +303,60 @@
         }
         tiempoUltimaMuestra = new Date(ts).getTime();
       }
-
-      // Salida de alarma
+      if (!cicloInicio && distancia > UMBRAL_CM) {
+        cicloInicio = ts;
+      }
       if (enAlarma && distancia > UMBRAL_CM) {
         enAlarma = false;
-        const tAhora = new Date(ts).getTime();
-        tiempoTotalAlarma += (tAhora - tiempoUltimaMuestra) / 1000;
+        let duracionHoras = 0;
+        if (cicloInicio) {
+          const inicio = new Date(cicloInicio).getTime();
+          const fin = new Date(ts).getTime();
+          duracionHoras = (fin - inicio) / (1000 * 60 * 60);
+          duracionesCiclos.push(duracionHoras);
+        }
+        historialCiclos.push({
+          inicio: cicloInicio,
+          fin: ts,
+          promedioDistancia: count ? (sumaDistancia / count).toFixed(1) : 0,
+          tiempoMedio: tiemposEntreAlarmas.length > 0
+            ? (tiemposEntreAlarmas.reduce((a, b) => a + b, 0) / tiemposEntreAlarmas.length).toFixed(1)
+            : 0,
+          duracionHoras: duracionHoras.toFixed(2),
+          muestras: count
+        });
+        actualizarHistorial();
+        sumaDistancia = 0;
+        count = 0;
+        tiemposEntreAlarmas = [];
+        muestrasAntesAlarma = 0;
+        totalAlarmas = 0;
+        tiempoUltimaAlarma = null;
         tiempoUltimaMuestra = null;
+        cicloInicio = null;
+        const tableBody = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
+        tableBody.innerHTML = "";
+        grafico.data.labels = [];
+        grafico.data.datasets[0].data = [];
+        grafico.update();
       }
-
-      if (enAlarma) {
-        tiempoUltimaMuestra = new Date(ts).getTime();
-      }
-
       actualizarKPIs();
     }
-
-    function autoGuardarYLimpiar() {
-      // Guardar CSV automáticamente
-      const header = "timestamp,distancia_cm\n";
-      const csv = header + lines.join("\n");
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `mediciones_${new Date().toISOString()}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-
-      // Limpiar datos
-      lines = [];
-      sumaDistancia = 0; sumaPeso = 0; count = 0;
-      sumaTiempoDeteccion = 0; eventosDeteccion = 0;
-      pesosAntesAlarma = [];
-      ultimoCambio = null;
-
-      // Limpiar tabla
-      const tableBody = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
-      tableBody.innerHTML = "";
-
-      // Limpiar gráfico
-      grafico.data.labels = [];
-      grafico.data.datasets[0].data = [];
-      grafico.update();
-
-      // Reset KPIs
-      actualizarKPIs();
-
-      setStatus("Autoguardado realizado y datos reiniciados");
-    }
-
-    function limpiarDatos() {
-      if (!confirm("¿Seguro que deseas limpiar todos los datos? Esta acción no se puede deshacer.")) {
-        setStatus("Limpieza cancelada");
-        return;
-      }
-      lines = [];
-      sumaDistancia = 0; sumaPeso = 0; count = 0;
-      sumaTiempoDeteccion = 0; eventosDeteccion = 0;
-      pesosAntesAlarma = [];
-      ultimoCambio = null;
-
-      // Limpiar tabla
-      const tableBody = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
-      tableBody.innerHTML = "";
-
-      // Limpiar gráfico
-      grafico.data.labels = [];
-      grafico.data.datasets[0].data = [];
-      grafico.data.datasets[1].data = [];
-      grafico.update();
-
-      // Reset KPIs
-      actualizarKPIs();
-
-      setStatus("Datos limpiados");
-    }
-
     function actualizarKPIs() {
-      // Promedio distancia
-      document.getElementById('kpiDistancia').textContent = (sumaDistancia / count).toFixed(1) + " cm";
-
-      // Nivel antes de alarma (% muestras antes de la primera alarma)
-      let nivelAlarma = totalAlarmas > 0 ? (muestrasAntesAlarma / count) * 100 : 100;
-      document.getElementById('kpiAlarma').textContent = nivelAlarma.toFixed(1) + " %";
-
-      // Tiempo medio detección (segundos entre llenados)
-      let tiempoMedio = tiemposEntreAlarmas.length > 0
-        ? (tiemposEntreAlarmas.reduce((a, b) => a + b, 0) / tiemposEntreAlarmas.length)
+      let promedioDistancia = historialCiclos.length > 0
+        ? (historialCiclos.reduce((a, b) => a + parseFloat(b.promedioDistancia), 0) / historialCiclos.length)
         : 0;
-      document.getElementById('kpiTiempo').textContent = tiempoMedio.toFixed(1) + " s";
+      document.getElementById('kpiDistancia').textContent = promedioDistancia.toFixed(1) + " cm";
+      let tiempoMedioGlobal = historialCiclos.length > 0
+        ? (historialCiclos.reduce((a, b) => a + parseFloat(b.tiempoMedio), 0) / historialCiclos.length)
+        : 0;
+      document.getElementById('kpiTiempo').textContent = tiempoMedioGlobal.toFixed(1) + " s";
+      document.getElementById('kpiCiclos').textContent = historialCiclos.length;
+      let duracionPromedio = historialCiclos.length > 0
+        ? (historialCiclos.reduce((a, b) => a + parseFloat(b.duracionHoras), 0) / historialCiclos.length)
+        : 0;
+      document.getElementById('kpiDuracionCiclo').textContent = duracionPromedio.toFixed(2) + " h";
     }
-
-    
     async function stopAndSave() {
       keepReading = false;
       try { 
@@ -353,7 +372,6 @@
       } catch {}
       try { if (port) { await port.close(); } } catch {}
       setStatus("desconectado");
-
       const header = "timestamp,distancia_cm\n";
       const csv = header + lines.join("\n");
       const blob = new Blob([csv], { type: "text/csv" });
@@ -364,12 +382,46 @@
       a.click();
       URL.revokeObjectURL(url);
     }
-
+    function limpiarDatos() {
+      sumaDistancia = 0;
+      count = 0;
+      muestrasAntesAlarma = 0;
+      totalAlarmas = 0;
+      tiempoUltimaAlarma = null;
+      tiempoTotalAlarma = 0;
+      tiempoUltimaMuestra = null;
+      tiemposEntreAlarmas = [];
+      enAlarma = false;
+      historialCiclos = [];
+      cicloInicio = null;
+      duracionesCiclos = [];
+      lines = [];
+      document.getElementById('dataTable').getElementsByTagName('tbody')[0].innerHTML = "";
+      grafico.data.labels = [];
+      grafico.data.datasets[0].data = [];
+      grafico.update();
+      actualizarHistorial();
+      actualizarKPIs();
+      setStatus("Datos limpiados");
+    }
+    function actualizarHistorial() {
+      const table = document.getElementById('historialTable').getElementsByTagName('tbody')[0];
+      table.innerHTML = "";
+      historialCiclos.forEach((ciclo, idx) => {
+        const row = table.insertRow();
+        row.insertCell(0).textContent = idx + 1;
+        row.insertCell(1).textContent = formatearFecha(ciclo.inicio);
+        row.insertCell(2).textContent = formatearFecha(ciclo.fin);
+        row.insertCell(3).textContent = ciclo.promedioDistancia;
+        row.insertCell(4).textContent = ciclo.tiempoMedio;
+        row.insertCell(5).textContent = ciclo.duracionHoras + " h";
+        row.insertCell(6).textContent = ciclo.muestras;
+      });
+    }
     document.getElementById('btnConnect').onclick = connect;
     document.getElementById('btnStart').onclick = start;
     document.getElementById('btnStop').onclick = stopAndSave;
     document.getElementById('btnLimpiar').onclick = limpiarDatos;
-
     if (!("serial" in navigator)) {
       setStatus("tu navegador no soporta Web Serial (usa Chrome/Edge de escritorio).");
     }
